@@ -1,0 +1,308 @@
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+#country-list{float:left;list-style:none;margin-top:-3px;padding:0;width:190px;position: absolute;}
+#country-list li{padding: 10px; background: #f0f0f0; border-bottom: #bbb9b9 1px solid;}
+#country-list li:hover{background:#ece3d2;cursor: pointer;}
+#search-box{padding: 10px;border: #a8d4b1 1px solid;border-radius:4px;}
+</style>
+  <!-- Content Wrapper. Contains page content -->
+  <div class="content-wrapper">
+    <!-- Content Header (Page header) -->
+    <section class="content-header">
+      <h1>
+        Gjendja Materiale
+      </h1>
+      <ol class="breadcrumb">
+        <li><a href="#"><i class="fa fa-dashboard"></i>Faqa Kryesore</a></li>
+        <li class="active">Raportet</li>
+      </ol>
+    </section>
+
+    <!-- Main content -->
+    <section class="content">
+      <!-- Small boxes (Stat box) -->
+      <div class="row">
+        <br /> <br />
+
+
+        <div class="col-md-12 col-xs-12">
+
+          <?php if($this->session->flashdata('success')): ?>
+            <div class="alert alert-success alert-dismissible" role="alert">
+              <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+              <?php echo $this->session->flashdata('success'); ?>
+            </div>
+          <?php elseif($this->session->flashdata('error')): ?>
+            <div class="alert alert-error alert-dismissible" role="alert">
+              <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+              <?php echo $this->session->flashdata('error'); ?>
+            </div>
+          <?php endif; ?>
+        </div>
+
+<?php
+
+// create connection
+$mysqli = new mysqli("localhost","root","","stock");
+
+// Check connection
+if ($mysqli -> connect_errno) {
+  echo "Failed to connect to MySQL: " . $mysqli -> connect_error;
+  exit();
+}
+?>
+
+<style>
+    table {font-family: arial, sans-serif; border-collapse: collapse; width: 40%;}
+    td, th { border: 2px solid #dddddd; text-align: center; padding: 3px;}
+    tr:nth-child(even) {background-color: #dddddd;}
+</style>
+
+
+<form method="post" class="w3-container" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]);?>">
+
+<div class="form-group">
+  <label class="col-sm-5 control-label pull pull-left" style="text-align:left;" required>Emri i klientit</label>
+  <div class="col-sm-7">
+    <input type="text" class="form-control" id="customer_name" name="customer_name" placeholder="Kerko klientin" autocomplete="off" style="width:50%;" required/>
+    <div id="suggesstion-box"></div>
+  </div>
+
+  </br></br></br></br>
+
+  <label class="col-sm-5 control-label pull pull-left" style="text-align:left;" required>Produkti: </label>
+  <div class="col-sm-7">
+    <select name="product_array" class="form-control select_group product" style="width:50%;" required>
+    <?php
+      $products = $mysqli -> query("SELECT name FROM products");
+      //echo $products -> num_rows. "</br> Rows Returned - products</br>";
+
+      while ($row = $products->fetch_array(MYSQLI_ASSOC)) {
+          echo "<option>".$row['name']."</option>";
+      }
+    ?>
+    </select>
+    </br>
+    <button type="submit" class="btn btn-default">Gjenero</button>
+    </br></br>
+  </div>
+</div>
+
+</form>
+
+<?php
+
+error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT & E_ERROR & E_WARNING);
+//error_reporting(0);
+
+//include the file that loads the PhpSpreadsheet classes
+require 'spreadsheet/vendor/autoload.php';
+
+//include the classes needed to create and write .xlsx file
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+
+//if ($_SERVER["REQUEST_METHOD"] == "POST") {
+//  if (empty($_POST["customer_name"])) {
+//    echo "Ju lutem plotesoni fushen ! </br>";
+//  }
+//}
+
+//$user_id = 11;
+$user_id = $this->session->userdata('id');
+
+// gjendje klient|produkt query
+//$result = $mysqli -> query("SELECT users.id, users.username, customers.name AS c_name, products.name AS p_name, orders_item.qty FROM users, customers, products, orders_item, orders WHERE orders.id = orders_item.order_id AND orders.user_id = users.id AND orders_item.product_id = products.id AND customers.name = orders.customer_name AND customers.name = '".$_POST['customer_name']."' and products.name = '".$_POST['product_array']."'");
+
+//$result = $mysqli -> query("SELECT orders.net_amount AS total, orders.gross_amount as paguar, orders_item.qty FROM users, customers, products, orders_item, orders WHERE orders.id = orders_item.order_id AND orders.user_id = users.id AND orders_item.product_id = products.id AND customers.name = orders.customer_name AND customers.name = '".$_POST['customer_name']."' and products.name = '".$_POST['product_array']."'");
+$date = $mysqli -> query("SELECT DISTINCT orders.date_time as date from orders, products, orders_item where orders.user_id ='$user_id' and orders.customer_name = '".$_POST['customer_name']."' and products.name='".$_POST['product_array']."' and orders_item.order_id = orders.id and orders_item.product_id = products.id");
+
+//echo $result -> num_rows." Rows Returned - inventory</br>";
+//echo "selected: ".$_POST['product_array']."</br>";
+//echo "userID: ".$user_id."</br> </br>";
+
+
+//object of the Spreadsheet class to create the excel data
+$spreadsheet = new Spreadsheet();
+
+$spreadsheet->setActiveSheetIndex(0)
+->setCellValue('A1', 'Data')
+->setCellValue('C1', 'Sasia');
+
+$i = 2;
+
+if($date->num_rows > 0){
+
+  while ($dt = $date->fetch_array()) {
+
+    //$db_date = date("%d%m%y",$dt['date']);
+    $int_date = $dt['date'];
+
+    //$db_date = intval(mktime(0, 0, 0, date('m', intval($int_date)), date('d', intval($int_date)), date('y', intval($int_date)))/10000);
+    $db_date = intval($int_date / 1000);
+
+    $result = $mysqli -> query("SELECT orders_item.qty FROM users, customers, products, orders_item, orders WHERE orders.id = orders_item.order_id AND orders.user_id = users.id AND orders_item.product_id = products.id AND customers.name = orders.customer_name AND customers.name = '".$_POST['customer_name']."' and products.name = '".$_POST['product_array']."' AND orders.date_time like '".$db_date."%'");
+
+    $spreadsheet->setActiveSheetIndex(0)
+    ->setCellValue(sprintf('A%d',$i), date('d - m - y', $dt['date']));
+
+    while ($row = $result->fetch_array()) {
+      $spreadsheet->setActiveSheetIndex(0)
+      ->setCellValue(sprintf('A%d',$i + 1),'')
+      //->setCellValue(sprintf('D%d',$i), $row['total'])
+      //->setCellValue(sprintf('C%d',$i), $row['paguar'])
+      ->setCellValue(sprintf('C%d',$i), $row['qty']);
+
+      $i++;
+    }
+
+    //$spreadsheet->getActiveSheet()->mergeCells(sprintf('A%d:A%d', $j, $i));
+
+/*
+    if ($result -> num_rows > 0){
+      $spreadsheet->setActiveSheetIndex(0)
+      ->setCellValue(sprintf('A%d',$j), $dt['date'])
+      //->setCellValue(sprintf('A%d',$j + 1), sprintf('=CONCAT(A%d," ",B%d)', $j + 1, $i))
+      ;
+
+      $spreadsheet->getActiveSheet()->mergeCells(sprintf('A%d:A%d',$j, $i - 1));
+      echo sprintf(' == A%d:A%d ==',$j , $i - 1);
+      //$j = $j + $i + 1;
+      $j++;
+    }
+*/
+  }
+
+
+$spreadsheet->setActiveSheetIndex(0)
+->setCellValue(sprintf('B%d',$i), 'Totali')
+->setCellValue(sprintf('C%d',$i), sprintf('=SUM(C1:C%d)',$i-1));
+}
+
+
+//set style for A1,B1,C1 cells
+//$cell_st =[
+// 'font' =>['bold' => true],
+// 'alignment' =>['horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER],
+// 'borders'=>['bottom' =>['style'=> \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_MEDIUM]]
+//];
+//$spreadsheet->getActiveSheet()->getStyle('A1:C1')->applyFromArray($cell_st);
+
+//set columns width
+//$spreadsheet->getActiveSheet()->getColumnDimension('A')->setWidth(16);
+//$spreadsheet->getActiveSheet()->getColumnDimension('B')->setWidth(18);
+
+//$spreadsheet->getActiveSheet()->setTitle('Simple'); //set a title for Worksheet
+
+if ($date -> num_rows > 0){
+
+  //make object of the Xlsx class to save the excel file
+  $writer = new Xlsx($spreadsheet);
+  $fxls =sprintf('raporte/excel-file_%d.xlsx', $user_id);
+  $writer->save($fxls);
+
+    //check if excel created
+  if (file_exists($fxls)) {
+      //echo $fxls .' succesfully created </br> </br> ';
+      //echo sprintf('<a href="'.base_url('raporte\excel-file_%s.xlsx').'"> Shkarko Raportin </a> </br></br>',$user_id);
+
+      $result -> free_result();
+      $mysqli -> close();
+
+      // format data from excel to html file
+      $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($fxls);
+
+      //read excel data and store it into an array
+      $xls_data = $spreadsheet->getActiveSheet()->toArray(null, true, true, true);
+      /* $xls_data contains this array:
+      [1=>['A'=>'Domain', 'B'=>'Category', 'C'=>'Nr. Pages'], 2=>['A'=>'CoursesWeb.net', 'B'=>'Web Development', 'C'=>4000], 3=>['A'=>'MarPlo.net', 'B'=>'Courses & Games', 'C'=>15000]]
+      */
+
+    //now it is created a html table with the excel file data
+    $html_tb ='<table border="1" class="table table-bordered"><tr><th>'. implode('</th><th>', $xls_data[1]) .'</th></tr>';
+    $nr = count($xls_data); //number of rows
+    for($i=2; $i<=$nr; $i++){
+      $html_tb .='<tr><td>'. implode('</td><td>', $xls_data[$i]) .'</td></tr>';
+    }
+
+    $html_tb .='</table>';
+
+    echo $html_tb;
+
+    $file = fopen("tablePrint.html", "w");
+    fwrite($file, printRaport($html_tb));
+
+    echo '<form method="post">';
+    echo sprintf('</br> </br> <a href='.base_url('raporte/excel-file_%s.xlsx').' <button class="btn btn-default"> Shkarko Raportin </button> </a> </br></br>',$user_id);
+    //echo '<a href='.printRaport().'>Printo Raport</a>';
+    echo '<a href="'.base_url("tablePrint.html").'" target="_blank" <button class="btn btn-default"> Printo Raportin </button> </a>';
+  }
+  else echo 'Unable to write: '. $fxls;
+}
+elseif(!$result) {
+  echo '<script type="text/javascript">alert("Nuk u gjet rezultat");</script>';
+}
+
+function printRaport($html_tb)
+	{
+			$html = '<!-- Main content -->
+			<!DOCTYPE html>
+			<html>
+			<head>
+			  <meta charset="utf-8">
+			  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+			  <title>PrintoInvoice</title>
+			  <!-- Tell the browser to be responsive to screen width -->
+			  <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport">
+			  <!-- Bootstrap 3.3.7 -->
+			  <link rel="stylesheet" href="'.base_url('assets/bower_components/bootstrap/dist/css/bootstrap.min.css').'">
+			  <!-- Font Awesome -->
+			  <link rel="stylesheet" href="'.base_url('assets/bower_components/font-awesome/css/font-awesome.min.css').'">
+			  <link rel="stylesheet" href="'.base_url('assets/dist/css/AdminLTE.min.css').'">
+			</head>
+			<body onload="window.print();">
+			'.$html_tb.'
+		</body>
+	</html>';
+
+			  return $html;
+		}
+
+
+?>
+
+    </section>
+    <!-- /.content -->
+  </div>
+  <!-- /.content-wrapper -->
+
+  <script type="text/javascript">
+
+    var base_url = "<?php echo base_url(); ?>";
+
+    $(document).ready(function() {
+
+      $("#customer_name").keyup(function(){
+		  $.ajax({
+		    type: "POST",
+		    url: base_url + "readCountry.php",
+		    data: {keyword: $(this).val(), parent: <?php echo $user_id ?>},
+		    beforeSend: function(){
+			    $("#customer_name").css("background","#FFF url(base_url + 'LoaderIcon.gif') no-repeat 165px");
+		    },
+		    success: function(data){
+			    $("#suggesstion-box").show();
+			    $("#suggesstion-box").html(data);
+			    $("#customer_name").css("background","#FFF url(LoaderIcon.gif) no-repeat 165px");
+		    }
+		  });
+	  });
+
+      $("#reportNav").addClass('active');
+    });
+    function selectCountry(val) {
+      $("#customer_name").val(val);
+      $("#suggesstion-box").hide();
+    }
+  </script>
